@@ -6,7 +6,10 @@ from google.oauth2 import service_account
 from datetime import date
 
 import telebot
+from time import perf_counter
 from telebot import types
+
+import threading
 
 API_KEY = os.getenv('API_KEY')
 SPREADSHEET_ID = os.getenv('SPREADSHEET_ID')
@@ -18,6 +21,8 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 service = build('sheets', 'v4', credentials=credentials)
 write_sheet = service.spreadsheets()
+
+classes, kids, students, subjects, nicks = {}, {}, {}, {}, {}
 
 
 def read_from_table(api_key: str, spreadsheetId: str, range: str):
@@ -35,66 +40,85 @@ def write_to_table(spreadsheetId, range, values):
     ).execute()
 
 
-settings = read_from_table(API_KEY, SPREADSHEET_ID, 'settings!A1:D1000')
-settings_dict = {i[0]: i[1] for i in settings}
+def values_get(x):
+    global values, values2, values3
+    if x == 0:
+        values = read_from_table(API_KEY, SPREADSHEET_ID, f'{KIDS_SHEET_NAME}!A1:AO1000')
+    elif x == 1:
+        values2 = read_from_table(API_KEY, SPREADSHEET_ID, f'{USERS_SHEET_NAME}!A1:AO1000')
+    elif x == 2:
+        values3 = read_from_table(API_KEY, SPREADSHEET_ID, f'{TEACHER_SHEET_NAME}!A1:AO1000')
 
-# read the table names from the settings table
 
-KIDS_SHEET_NAME = settings_dict['KIDS_SHEET_NAME']
-USERS_SHEET_NAME = settings_dict['USERS_SHEET_NAME']
-TEACHER_SHEET_NAME = settings_dict['TEACHER_SHEET_NAME']
-REVIEWS_SHEET_NAME = settings_dict['REVIEWS_SHEET_NAME']
+def read_tables():
+    global classes, kids, students, subjects, nicks
+    global KIDS_SHEET_NAME, USERS_SHEET_NAME, TEACHER_SHEET_NAME, REVIEWS_SHEET_NAME
 
-values = read_from_table(API_KEY, SPREADSHEET_ID, f'{KIDS_SHEET_NAME}!A1:AO1000')
-values2 = read_from_table(API_KEY, SPREADSHEET_ID, f'{USERS_SHEET_NAME}!A1:AO1000')
-values3 = read_from_table(API_KEY, SPREADSHEET_ID, f'{TEACHER_SHEET_NAME}!A1:AO1000')
+    settings = read_from_table(API_KEY, SPREADSHEET_ID, 'settings!A1:D1000')
+    settings_dict = {i[0]: i[1] for i in settings}
 
-classes = {}  # dictionary matching classes with lists of students in them
-for i, j in enumerate(values[0]):
-    classes[j] = [values[k][i] for k in range(1, len(values)) if len(values[k]) > i and values[k][i]]
+    # read the table names from the settings table
 
-kids = {j for i in classes.values() for j in i}
+    KIDS_SHEET_NAME = settings_dict['KIDS_SHEET_NAME']
+    USERS_SHEET_NAME = settings_dict['USERS_SHEET_NAME']
+    TEACHER_SHEET_NAME = settings_dict['TEACHER_SHEET_NAME']
+    REVIEWS_SHEET_NAME = settings_dict['REVIEWS_SHEET_NAME']
 
-students = {}  # dictionary matching students' names with a list of classes they belong to
-for cl, st in classes.items():
-    for i in st:
-        students[i] = students.get(i, []) + [cl]
+    t = [threading.Thread(target=values_get, args=(i,)) for i in range(3)]
 
-nick_index = values2[0].index('nick')
-name_index = values2[0].index('name')
+    for i in t:
+        i.start()
 
-nicks = {}  # dictionary matching telegram nicknames to names
+    for i in t:
+        i.join()
 
-for i in range(1, len(values2)):
-    if len(values2[i]) > nick_index:
-        nicks[values2[i][nick_index]] = '' if len(values2[i]) <= name_index else values2[i][name_index]
+    classes = {}  # dictionary matching classes with lists of students in them
+    for i, j in enumerate(values[0]):
+        classes[j] = [values[k][i] for k in range(1, len(values)) if len(values[k]) > i and values[k][i]]
 
-for student in students.keys():
-    nicks[student] = student
+    kids = {j for i in classes.values() for j in i}
 
-subjects = {}  # a dictionary matching classes with lists of subjects for them
-for i in range(1, len(values3)):
-    if len(values3[i]) > 2:
-        subjects[values3[i][2]] = subjects.get(values3[i][2], []) + [values3[i][0]]
+    students = {}  # dictionary matching students' names with a list of classes they belong to
+    for cl, st in classes.items():
+        for i in st:
+            students[i] = students.get(i, []) + [cl]
+
+    nick_index = values2[0].index('nick')
+    name_index = values2[0].index('name')
+
+    nicks = {}  # dictionary matching telegram nicknames to names
+
+    for i in range(1, len(values2)):
+        if len(values2[i]) > nick_index:
+            nicks[values2[i][nick_index]] = '' if len(values2[i]) <= name_index else values2[i][name_index]
+
+    for student in students.keys():
+        nicks[student] = student
+
+    subjects = {}  # a dictionary matching classes with lists of subjects for them
+    for i in range(1, len(values3)):
+        if len(values3[i]) > 2:
+            subjects[values3[i][2]] = subjects.get(values3[i][2], []) + [values3[i][0]]
+
+
+read_tables()
 
 bot = telebot.TeleBot(TELEGRAM_KEY)
 
 access_mode = {}
 
-answer_number = 0
-
 print('Бот успешно запущен')
+print(f'classes: {classes}\n kids: {kids}\n students: {students}\n subjects: {subjects}, nicks: {nicks}')
+
 
 @bot.message_handler()
 def get_user_text(message):
-    global answer_number
     global access_mode
     try:
         if message.from_user.username in access_mode:
             nick = message.from_user.username
             if access_mode[nick][1]:
                 t = read_from_table(API_KEY, SPREADSHEET_ID, f'{REVIEWS_SHEET_NAME}!A1:D1000')
-                answer_number += 1
 
                 user = str(nick) if access_mode[nick][1] == 'review_type1' else None
                 subject = access_mode[nick][0]
@@ -126,7 +150,7 @@ def get_user_text(message):
             else:
                 bot.send_message(message.chat.id, f'Ошибка: Имя {message.from_user.username} не найдено в таблице.')
     except Exception as err:
-       bot.send_message(message.chat.id, f'Ошибка: {err}')
+        bot.send_message(message.chat.id, f'Ошибка: {err}')
 
 
 @bot.callback_query_handler(func=lambda call: True)
