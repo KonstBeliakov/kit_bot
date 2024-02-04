@@ -108,7 +108,6 @@ bot = telebot.TeleBot(TELEGRAM_KEY)
 access_mode = {}
 
 print('Бот успешно запущен')
-print(f'classes: {classes}\n kids: {kids}\n students: {students}\n subjects: {subjects}, nicks: {nicks}')
 
 
 @bot.message_handler()
@@ -120,7 +119,7 @@ def get_user_text(message):
             if access_mode[nick][1]:
                 t = read_from_table(API_KEY, SPREADSHEET_ID, f'{REVIEWS_SHEET_NAME}!A1:D1000')
 
-                user = str(nick) if access_mode[nick][1] == 'review_type1' else None
+                user = str(nick) if access_mode[nick][1] == 'review' else None
                 subject = access_mode[nick][0]
 
                 write_to_table(SPREADSHEET_ID, f'{REVIEWS_SHEET_NAME}!A{len(t) + 1}:D{len(t) + 1}',
@@ -158,13 +157,13 @@ def answer(call):
     global access_mode
     print('answer function was called')
     print(f'access_mode: {access_mode}')
-    if call.data not in ['review_type1', 'review_type2']:
+    if call.data not in ['review', 'anonimous_review']:
         access_mode[call.from_user.username] = [call.data, None]
 
         markup = types.InlineKeyboardMarkup(row_width=2)
 
-        markup.add(types.InlineKeyboardButton(text='Обычный отзыв', callback_data='review_type1'),
-                   types.InlineKeyboardButton(text='Анонимный отзыв', callback_data='review_type2'))
+        markup.add(types.InlineKeyboardButton(text='Обычный отзыв', callback_data='review'),
+                   types.InlineKeyboardButton(text='Анонимный отзыв', callback_data='anonimous_review'))
 
         bot.send_message(call.message.chat.id, f'Выбери какой тип отзыва ты хочешь оставить для урока {call.data}:',
                          reply_markup=markup)
