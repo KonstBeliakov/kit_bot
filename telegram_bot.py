@@ -126,6 +126,8 @@ def get_user_text(message):
                                [[str(date.today()), subject, nicks.get(user, None), message.text]])
 
                 del access_mode[nick]
+
+                bot.send_message(message.chat.id, 'Спасибо за отзыв!')
             else:
                 bot.send_message(message.chat.id, 'Перед тем как писать отзыв, пожалуйста выбери тип отзыва (обычный '
                                                   'или анонимный)')
