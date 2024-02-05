@@ -1,19 +1,18 @@
 import os.path
+import threading
 
-from googleapiclient.discovery import build
 from google.oauth2 import service_account
 
 from datetime import date
 
 import telebot
-from time import perf_counter
 from telebot import types
 
-import threading
+from google_sheets_utils import *
 
+TELEGRAM_KEY = os.getenv('TELEGRAM_KEY')
 API_KEY = os.getenv('API_KEY')
 SPREADSHEET_ID = os.getenv('SPREADSHEET_ID')
-TELEGRAM_KEY = os.getenv('TELEGRAM_KEY')
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVICE_ACCOUNT_FILE = os.path.join(BASE_DIR, 'credentials.json')
@@ -21,23 +20,6 @@ SCOPES = ['https://www.googleapis.com/auth/spreadsheets']
 credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
 service = build('sheets', 'v4', credentials=credentials)
 write_sheet = service.spreadsheets()
-
-classes, kids, students, subjects, nicks = {}, {}, {}, {}, {}
-
-
-def read_from_table(api_key: str, spreadsheetId: str, range: str):
-    sheets = build('sheets', 'v4', developerKey=api_key).spreadsheets()
-    result = sheets.values().get(spreadsheetId=spreadsheetId, range=range).execute()
-    return result.get('values', [])
-
-
-def write_to_table(spreadsheetId, range, values):
-    write_sheet.values().update(
-        spreadsheetId=spreadsheetId,
-        range=range,
-        valueInputOption="RAW",
-        body={'values': values}
-    ).execute()
 
 
 def values_get(x):
@@ -122,7 +104,7 @@ def get_user_text(message):
                 user = str(nick) if access_mode[nick][1] == 'review' else None
                 subject = access_mode[nick][0]
 
-                write_to_table(SPREADSHEET_ID, f'{REVIEWS_SHEET_NAME}!A{len(t) + 1}:D{len(t) + 1}',
+                write_to_table(write_sheet, SPREADSHEET_ID, f'{REVIEWS_SHEET_NAME}!A{len(t) + 1}:D{len(t) + 1}',
                                [[str(date.today()), subject, nicks.get(user, None), message.text]])
 
                 del access_mode[nick]
