@@ -4,6 +4,7 @@ import threading
 from google.oauth2 import service_account
 
 from datetime import date
+from time import sleep
 
 import telebot
 from telebot import types
@@ -88,6 +89,19 @@ bot = telebot.TeleBot(TELEGRAM_KEY)
 access_mode = {}
 
 print('Бот успешно запущен')
+
+
+def update():
+    while True:
+        sleep(60)
+        print('updating data...', end='')
+        read_tables()
+        print('done')
+
+
+update_tables = threading.Thread(target=update)
+
+update_tables.start()
 
 
 @bot.message_handler()
