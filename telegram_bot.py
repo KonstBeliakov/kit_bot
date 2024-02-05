@@ -21,19 +21,17 @@ credentials = service_account.Credentials.from_service_account_file(SERVICE_ACCO
 service = build('sheets', 'v4', credentials=credentials)
 write_sheet = service.spreadsheets()
 
+values = [[], [], []]
+
 
 def values_get(x):
-    global values, values2, values3
-    if x == 0:
-        values = read_from_table(API_KEY, SPREADSHEET_ID, f'{KIDS_SHEET_NAME}!A1:AO1000')
-    elif x == 1:
-        values2 = read_from_table(API_KEY, SPREADSHEET_ID, f'{USERS_SHEET_NAME}!A1:AO1000')
-    elif x == 2:
-        values3 = read_from_table(API_KEY, SPREADSHEET_ID, f'{TEACHER_SHEET_NAME}!A1:AO1000')
+    global values
+    t = [KIDS_SHEET_NAME, USERS_SHEET_NAME, TEACHER_SHEET_NAME]
+    values[x] = read_from_table(API_KEY, SPREADSHEET_ID, f'{t[x]}!A1:AO1000')
 
 
 def read_tables():
-    global classes, kids, students, subjects, nicks
+    global classes, kids, students, subjects, nicks, values
     global KIDS_SHEET_NAME, USERS_SHEET_NAME, TEACHER_SHEET_NAME, REVIEWS_SHEET_NAME
 
     settings = read_from_table(API_KEY, SPREADSHEET_ID, 'settings!A1:D1000')
@@ -55,8 +53,8 @@ def read_tables():
         i.join()
 
     classes = {}  # dictionary matching classes with lists of students in them
-    for i, j in enumerate(values[0]):
-        classes[j] = [values[k][i] for k in range(1, len(values)) if len(values[k]) > i and values[k][i]]
+    for i, j in enumerate(values[0][0]):
+        classes[j] = [values[0][k][i] for k in range(1, len(values[0])) if len(values[0][k]) > i and values[0][k][i]]
 
     kids = {j for i in classes.values() for j in i}
 
@@ -65,22 +63,22 @@ def read_tables():
         for i in st:
             students[i] = students.get(i, []) + [cl]
 
-    nick_index = values2[0].index('nick')
-    name_index = values2[0].index('name')
+    nick_index = values[1][0].index('nick')
+    name_index = values[1][0].index('name')
 
     nicks = {}  # dictionary matching telegram nicknames to names
 
-    for i in range(1, len(values2)):
-        if len(values2[i]) > nick_index:
-            nicks[values2[i][nick_index]] = '' if len(values2[i]) <= name_index else values2[i][name_index]
+    for i in range(1, len(values[1])):
+        if len(values[1][i]) > nick_index:
+            nicks[values[1][i][nick_index]] = '' if len(values[1][i]) <= name_index else values[1][i][name_index]
 
     for student in students.keys():
         nicks[student] = student
 
     subjects = {}  # a dictionary matching classes with lists of subjects for them
-    for i in range(1, len(values3)):
-        if len(values3[i]) > 2:
-            subjects[values3[i][2]] = subjects.get(values3[i][2], []) + [values3[i][0]]
+    for i in range(1, len(values[2])):
+        if len(values[2][i]) > 2:
+            subjects[values[2][i][2]] = subjects.get(values[2][i][2], []) + [values[2][i][0]]
 
 
 read_tables()
